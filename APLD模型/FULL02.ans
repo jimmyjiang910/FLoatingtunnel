@@ -439,10 +439,17 @@ PLLS,QIZ,QJZ,-1
 
 
 ! 定义跨中管体节点
+! 先限定为管体节点，避免用变形后的Y坐标进行精确筛选
 ALLSEL,ALL
-NSEL,S,LOC,X,LT/2-0.1,LT/2+0.1
-NSEL,R,LOC,Y,-HS
+CMSEL,S,TUNNEL_NODES
+NSEL,R,LOC,X,LT/2-0.1,LT/2+0.1
+
 *GET,mid_node,NODE,0,NUM,MIN
+*GET,Nmid_count,NODE,0,COUNT
+
+*STATUS,mid_node
+*STATUS,Nmid_count
+
 ALLSEL,ALL
 
 FINISH
