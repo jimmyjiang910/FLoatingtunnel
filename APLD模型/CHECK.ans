@@ -1,0 +1,40 @@
+FINISH
+/POST1
+SET,LAST
+
+! 1. 位移云图（看极值）
+PLNSOL, U, Y, 0, 1.0      ! 竖向位移 → 记录 SMX
+PLNSOL, U, Z, 0, 1.0      ! 横向位移 → 记录 SMN
+PLNSOL, U, SUM, 0, 1.0    ! 总位移 → 记录 SMX
+
+! 2. 管体内力云图（先选管体单元）
+ESEL,S,TYPE,,1
+
+! 弯矩图（已经定义过，直接画）
+PLLS,MIY,MJY,-1           ! 绕Y轴弯矩 → 记录 SMX/SMN
+PLLS,MIZ,MJZ,-1           ! 绕Z轴弯矩 → 记录 SMX/SMN
+
+! 剪力图（已经定义过，直接画）
+PLLS,QIY,QJY,-1           ! Y方向剪力 → 记录 MAX/MIN
+PLLS,QIZ,QJZ,-1           ! Z方向剪力 → 记录 MAX/MIN
+
+! 轴力图（如果需要，临时定义并画）
+ETABLE,AXI_I,SMISC,1
+ETABLE,AXI_J,SMISC,7
+PLLS,AXI_I,AXI_J,-1       ! 轴力 → 记录 SMX
+
+! 扭矩图（如果需要，临时定义并画）
+ETABLE,MX_I,SMISC,4
+ETABLE,MX_J,SMISC,17
+PLLS,MX_I,MX_J,-1         ! 扭矩 → 记录 SMX
+
+
+
+! 锚索轴力（斜缆 TYPE=3，竖缆 TYPE=4）
+ESEL,S,TYPE,,3            ! 选斜缆
+ETABLE,CABLE_F,SMISC,1
+PLLS,CABLE_F,CABLE_F, -1  ! 看斜缆受力
+
+ESEL,S,TYPE,,4            ! 选竖缆
+ETABLE,CABLE_F,SMISC,1
+PLLS,CABLE_F,CABLE_F, -1  ! 看竖缆受力

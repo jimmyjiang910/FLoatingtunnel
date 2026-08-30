@@ -1,0 +1,275 @@
+FINISH
+/CLEAR,NOSTART
+/PREP7
+
+! ========== 几何与结构参数 ==========
+R1=6.5
+R2=7.5
+R3=0.1235
+R4=0.1235
+PI=3.1415926
+S2=PI*R2**2
+S3=PI*R3**2
+S4=PI*R4**2
+BWR=1.1      !(1.1 1.3 1.5 1.7 1.9)
+LT=1200
+LS=100
+N=LT/LS
+HT=100
+HS=40
+LL=HT-HS
+D0=15
+D1=1
+D2=1
+*AFUN,DEG
+TH=45
+
+! ========== 波流参数 ==========
+rho_water=1025
+g=9.81
+Cd=0.7
+Cm=2.0
+Hwave=3.0
+Twave=6.0
+Uc=0.0
+
+omega=2*PI/Twave
+kwave=omega**2/g
+z_tunnel=-HS
+att_exp=EXP(kwave*z_tunnel)
+umax_surface=PI*Hwave/Twave
+umax_tunnel=umax_surface*att_exp
+amax_tunnel=omega*umax_tunnel
+D_out=2*R2
+A_mor=0.5*Cd*rho_water*D_out
+B_mor=Cm*rho_water*(PI*D_out**2/4)
+
+t_end=6*Twave       !收敛时间
+dt=Twave/20
+nstep=NINT(t_end/dt)
+
+! ========== 建立模型 ==========
+! 管体
+ET,1,BEAM188
+MP,EX,1,3.45e10
+MP,PRXY,1,0.2
+MP,DENS,1,2550
+SECTYPE,1,BEAM,CTUBE,,0
+SECDATA,R1,R2,20
+
+*DO,i,1,N+1
+    K,i, LS*(i-1), -HS, 0
+*ENDDO
+*DO,i,1,N
+    L,i,i+1
+*ENDDO
+ALLSEL
+LATT,1,,1,,,,1
+LESIZE,ALL,,,D0
+LMESH,ALL
+
+! 刚臂
+ET,2,BEAM188
+MP,EX,2,3.45e13
+MP,PRXY,2,0.2
+MP,DENS,2,0
+SECTYPE,2,BEAM,CSOLID,,0
+SECDATA,0.1
+
+*DO,i,1,N/2
+    K,i+100, LS*(2*i-1), -HS, R2
+    K,i+200, LS*(2*i-1), -HS, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,2*i,i+200
+    L,2*i,i+100
+*ENDDO
+LSEL,S,LOC,Z,-1,1
+LSEL,INVE
+LATT,2,,2,,,,2
+LESIZE,ALL,,,1
+LMESH,ALL
+
+! 斜缆
+ET,3,LINK180
+MP,EX,3,2.10e11
+MP,PRXY,3,0.3
+MP,DENS,3,7850
+SECTYPE,3,LINK
+SECDATA,S3
+
+*DO,i,1,N/2
+    K,i+1000, LS*(2*i-1), -HT, R2+LL/TAN(TH)
+    K,i+2000, LS*(2*i-1), -HT, -R2-LL/TAN(TH)
+*ENDDO
+*DO,i,1,N/2
+    L,i+1000,i+100
+    L,i+2000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,2
+LATT,3,,3,,,,3
+LESIZE,ALL,,,D1
+LMESH,ALL
+
+! 竖缆
+ET,4,LINK180
+MP,EX,4,2.10e11
+MP,PRXY,4,0.3
+MP,DENS,4,7850
+SECTYPE,4,LINK
+SECDATA,S4
+
+*DO,i,1,N/2
+    K,i+3000, LS*(2*i-1), -HT, R2
+    K,i+4000, LS*(2*i-1), -HT, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,i+3000,i+100
+    L,i+4000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,3
+LATT,4,,4,,,,4
+LESIZE,ALL,,,D2
+LMESH,ALL
+
+! 边界条件
+KSEL,S,,,1
+KSEL,A,,,N+1
+NSLK
+D,ALL,ALL,0
+NSEL,S,LOC,Y,-HT-1,-HT+1
+D,ALL,ALL,0
+ALLSEL
+
+! ========== 生成波浪力时间表 ==========
+*AFUN,RAD
+*DIM,time_arr,ARRAY,nstep
+*DIM,Fwave_arr,ARRAY,nstep
+*DO,i,1,nstep
+    t=i*dt
+    time_arr(i)=t
+    u=umax_tunnel*COS(omega*t)+Uc
+    a=-umax_tunnel*omega*SIN(omega*t)
+    Fwave=A_mor*u*ABS(u)+B_mor*a
+    Fwave_arr(i)=Fwave
+*ENDDO
+
+FINISH
+
+! ========== 瞬态分析（斜坡净浮力） ==========
+/SOLU
+ANTYPE,4
+TRNOPT,FULL
+TIMINT,ON
+
+! 瑞利阻尼
+xi=0.05
+omega1_est=0.628
+ALPHAD,0
+BETAD,2*xi/omega1_est
+
+! 净浮力总值
+Vol_displaced=S2*LT
+Fnet_N=(BWR-1)*rho_water*g*Vol_displaced
+
+! 获取管体节点，并建立管体节点组件
+ESEL,S,TYPE,,1
+NSLE,S
+CM,TUNNEL_NODES,NODE
+
+*GET,Nnode_tunnel,NODE,0,COUNT
+Le_tunnel=LT/(Nnode_tunnel-1)
+
+ALLSEL,ALL
+
+! 斜坡持续时间（秒）
+t_ramp=2.1   ! 2.1秒内净浮力从0增加到目标值
+
+OUTRES,ALL,ALL
+*DO,it,1,nstep
+    t=time_arr(it)
+    TIME,t
+
+    ! 净浮力荷载因子（线性斜坡）
+    *IF,t,LT,t_ramp,THEN
+        factor=t/t_ramp
+    *ELSE
+        factor=1.0
+    *ENDIF
+
+    ! 当前时间步的均布线荷载
+    q_wave=Fwave_arr(it)
+    q_buoy=factor*Fnet_N/LT
+
+    ! ---------- 内部管体节点：完整权重 q*Le ----------
+    CMSEL,S,TUNNEL_NODES
+    NSEL,U,LOC,X,0
+    NSEL,U,LOC,X,LT
+
+    F,ALL,FZ,q_wave*Le_tunnel
+    F,ALL,FY,q_buoy*Le_tunnel
+
+    ! ---------- 左端节点：半权重 q*Le/2 ----------
+    CMSEL,S,TUNNEL_NODES
+    NSEL,R,LOC,X,0
+
+    F,ALL,FZ,0.5*q_wave*Le_tunnel
+    F,ALL,FY,0.5*q_buoy*Le_tunnel
+
+    ! ---------- 右端节点：半权重 q*Le/2 ----------
+    CMSEL,S,TUNNEL_NODES
+    NSEL,R,LOC,X,LT
+
+    F,ALL,FZ,0.5*q_wave*Le_tunnel
+    F,ALL,FY,0.5*q_buoy*Le_tunnel
+
+    ALLSEL,ALL
+
+    SOLVE
+*ENDDO
+FINISH
+
+
+! ========== 后处理 + 数据提取 ==========
+
+
+! ---------- 1. 基本后处理：弯矩图、剪力图、位移时程 ----------
+/POST1
+SET,LAST
+
+ESEL,S,TYPE,,1
+ETABLE,MIY,SMISC,2
+ETABLE,MJY,SMISC,15
+ETABLE,MIZ,SMISC,3
+ETABLE,MJZ,SMISC,16
+
+/DSCALE,1,1
+/AUTO,1
+EPLOT
+PLLS,MIY,MJY,-1
+PLLS,MIZ,MJZ,-1
+
+ETABLE,QIY,SMISC,6
+ETABLE,QJY,SMISC,19
+ETABLE,QIZ,SMISC,5
+ETABLE,QJZ,SMISC,18
+PLLS,QIY,QJY,-1
+PLLS,QIZ,QJZ,-1
+
+! ---------- 2. 定义中点节点（用于时程提取） ----------
+NSEL,S,LOC,X,LT/2-0.1,LT/2+0.1
+NSEL,R,LOC,Y,-HS
+*GET, mid_node, NODE, 0, NUM, MIN
+ALLSEL,ALL
+
+/POST26
+NSOL,2,mid_node,U,Y,disp_y
+NSOL,3,mid_node,U,Z,disp_z
+/AXLAB,X,Time (s)
+/AXLAB,Y,Displacement (m)
+PLVAR,2,3
+/REPLOT
+
+

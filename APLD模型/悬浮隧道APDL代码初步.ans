@@ -1,0 +1,163 @@
+FINISH
+/CLEAR,NOSTART  !清除数据
+/PREP7
+!设置参数
+R1=5.3          !横断面内径
+R2=6.3          !横断面外径
+R3=0.08         !斜缆半径
+R4=0.08         !直缆半径
+PI=3.1415926    !定义Π参数
+S2=PI*R2**2     !管节横截面面积
+S3=PI*R3**2     !斜缆横截面面积
+S4=PI*R4**2     !竖缆横截面面积
+BWR=1.2         !浮重比
+LT=500          !管道总长，取值：（500，1000，3000，5000，10000）
+LS=50           !管节长的一半
+L=100           !管节长
+N=LT/LS         !两倍管节数量
+HT=300          !水深
+HS=30           !隧道中心与水面距离
+LL=HT-HS        !直缆长度
+D0=15           !管节分划数
+D1=1            !斜缆分划数
+D2=1            !直缆分划数
+*AFUN,DEG       !定义角度单位为度
+TH=45           !斜缆角度
+!建立管节
+ET,1,BEAM188    !定义一号单元类型为BEAM188
+MP,EX,1,3.6e7   !定义一号材料弹性模量
+MP,PRXY,1,0.2   !泊松比
+MP,DENS,1,2.55  !密度
+SECTYPE,1,BEAM,CTUBE,,0   !定义一号截面为圆管
+SECDATA,R1,R2,20          !定义圆管内外径划分段
+SECPLOT,1,1     !绘制横截面
+SLIST,1,,, FULL !列出一号截面的所有特征
+*DO,i,1,N+1     !循环设置隧道中心关键点
+    K,i,LS*(i-1)
+*ENDDO
+*DO,i,1,N       !循环连线关键点
+    L,i,i+1
+*ENDDO
+ALLSEL
+LATT,1,,1,,,,1  !设置属性
+LESIZE,ALL,,,D0 !设置每条线的划分段数
+LMESH,ALL       !执行划分网格
+/ESHAPE,1 $ EPLOT         !显示单元形状
+!建立刚臂
+ET,2,BEAM188              !设置二号单元类型为梁单元
+MP,EX,2,3.6e10            !定义二号材料（刚度无穷大）弹性模量
+MP,PRXY,2,0.2             !二号材料泊松比
+MP,DENS,2,2.55            !二号材料密度
+SECTYPE,2,BEAM,CSOLID,,0  !定义二号横截面为实心圆
+SECDATA,0.1               !设置实心圆半径
+*DO,i,1,N/2               !循环定义刚臂关键点
+    K,i+100,LS*(2*i-1),0,R2
+    K,i+200,LS*(2*i-1),0,-R2
+*ENDDO
+*DO,i,1,N/2               !循环连线建立刚臂
+    L,2*i,i+200
+    L,2*i,i+100
+*ENDDO
+LSEL,S,LOC,Z,-1,1         !选择管节
+LSEL,INVE                 !反选选择刚臂
+LPLOT                     !绘制选择的线
+LATT,2,,2,,,,2            !选择2号
+LESIZE,ALL,,,1            !对选择的线进行划分网格，划分段数为1
+LMESH,ALL                 !划分网格
+!建立斜缆
+ET,3,LINK180              !定义三号单元类型为link180（只受拉力的杆模型）
+MP,EX,3,2.57E8            !定义三号材料弹性模量
+MP,PRXY,3,0.3             !三号材料泊松比
+MP,DENS,3,7.85            !三号材料密度
+SECTYPE,3,LINK            !定义三号材料截面类型（link180只有link类型）
+SECDATA,S3                !设置截面面积
+*DO,i,1,N/2               !循环定义斜缆与海底锚点（关键点）
+    K,i+1000,LS*(2*i-1),-LL,R2+LL/tan(TH)
+    K,i+2000,LS*(2*i-1),-LL,-R2-LL/tan(TH)
+*ENDDO
+*DO,i,1,N/2               !循环连接刚臂与海底锚点
+    L,i+1000,i+100
+    L,i+2000,i+200
+*ENDDO
+ALLSEL                    !全选
+LSEL,U,TYPE,,1,2          !减选类型为1，2的线（以及相关点面）
+LPLOT                     !绘制已选择的线
+LATT,3,,3,,,,3            !选择3号
+LESIZE,ALL,,,D1           !对选择的线进行划分网格，划分段数为D1
+LMESH,ALL                 !划分网格
+!建立竖缆
+ET,4,LINK180              !定义四号单元类型为link180（只受拉力的杆模型）
+MP,EX,4,2.57E8            !定义四号材料弹性模量
+MP,PRXY,4,0.3             !四号材料泊松比
+MP,DENS,4,7.85            !四号材料密度
+SECTYPE,4,LINK            !定义四号材料截面类型（link180只有link类型）
+SECDATA,S4                !设置截面面积
+*DO,i,1,N/2               !循环定义竖缆与海底锚点（关键点）
+    K,i+3000,LS*(2*i-1),-LL,R2
+    K,i+4000,LS*(2*i-1),-LL,-R2
+*ENDDO
+*DO,i,1,N/2               !循环连接刚臂与海底锚点
+    L,i+3000,i+100
+    L,i+4000,i+200
+*ENDDO
+ALLSEL                    !全选
+LSEL,U,TYPE,,1,3          !减选类型为1-3的线（以及相关点面）
+LPLOT                     !绘制已选择的线
+LATT,4,,4,,,,4            !选择4号
+LESIZE,ALL,,,D2           !对选择的线进行划分网格，划分段数为D2
+LMESH,ALL                 !划分网格
+!设置边界条件
+KSEL,S,,,1                !选择关键点1
+KSEL,A,,,N+1              !选择关键点N+1
+KPLOT                     !绘制选择的关键点
+NSLK                      !选择关联的节点node
+D,ALL,ALL,0               !所有元素所有自由度限制为0
+NSEL,S,LOC,Y,-LL-1,-LL+1  !重新选择在海床上下的节点
+NPLOT                     !绘制节点
+D,ALL,ALL,0               !所有元素所有自由度限制为0
+!施加外力
+ESEL,S,TYPE,,1            !重新选择单元1
+NSLE,S                    !nodes selected from elements根据单元选择节点
+FW=5.2*LT                 !总水流力（kN）
+FNET=10*S2*LT*(1-1/BWR)   !总净浮力（kN）
+*GET,NTOLW,NODE,,COUNT    !获取选中的节点数量存入变量NTOLW中
+F,ALL,FZ,FW/NTOLW         !对所有节点施加z方向的水流力
+F,ALL,FY,FNET/NTOLW       !对所有节点施加y方向的净浮力
+ALLSEL                    !全选
+/ESHAPE,1                 !开启单元截面显示
+EPLOT                     !绘制选择单元
+FINISH                    !前处理结束
+!求解
+/SOLU                     !求解开始
+ANTYPE,0                  !静力求解
+ALLSEL                    !全选
+SOLVE                     !求解
+FINISH                    !求解结束
+!后处理
+/POST1                    !进入通用后处理器
+SET,LAST                  !【关键补充】读取最后一步的求解结果（极其重要！）
+
+ESEL,S,TYPE,,1  ! 选取1号单元（悬浮隧道管体 BEAM188）
+
+! --- 提取弯矩 ---
+ETABLE,MIY, SMISC, 2   ! 提取 I 节点绕 Y 轴弯矩 (平面弯矩)
+ETABLE,MJY, SMISC, 15  ! 提取 J 节点绕 Y 轴弯矩
+ETABLE,MIZ, SMISC, 3   ! 提取 I 节点绕 Z 轴弯矩 (立面弯矩)
+ETABLE,MJZ, SMISC, 16  ! 提取 J 节点绕 Z 轴弯矩
+ETABLE,MIX, SMISC, 4   ! 提取 I 节点绕 X 轴扭矩
+ETABLE,MJX, SMISC, 17  ! 提取 J 节点绕 X 轴扭矩
+
+! --- 提取剪力 ---
+ETABLE, QIY, SMISC, 6   ! 提取 I 节点 Y 向剪力 (竖向剪力)
+ETABLE, QJY, SMISC, 19  ! 提取 J 节点 Y 向剪力
+ETABLE, QIZ, SMISC, 5   ! 提取 I 节点 Z 向剪力 (水平剪力)
+ETABLE, QJZ, SMISC, 18  ! 提取 J 节点 Z 向剪力
+
+! --- 绘制与列表 ---
+! 画 Y 轴弯矩图 (-1 代表反向显示，符合土木受拉侧画图习惯)
+PLLS, MIY, MJY, -1      
+PRETAB, MIY, MJY        ! 列表显示数值
+
+! 画 Z 轴弯矩图
+PLLS, MIZ, MJZ, -1      
+PRETAB, MIZ, MJZ        
