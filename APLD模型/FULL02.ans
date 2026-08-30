@@ -1,5 +1,6 @@
 FINISH
 /CLEAR,NOSTART
+/FILNAME,FULL02_R2
 /PREP7
 
 ! ========== 几何与结构参数 ==========
@@ -44,9 +45,14 @@ D_out=2*R2
 A_mor=0.5*Cd*rho_water*D_out
 B_mor=Cm*rho_water*(PI*D_out**2/4)
 
-t_end=6*Twave       !收敛时间
+t_end=15*Twave       !收敛时间
 dt=Twave/20
 nstep=NINT(t_end/dt)
+! ========== 模态与阻尼控制参数 ==========
+nmode=20          ! 暂时提取前20阶模态
+mode_low=1        ! 低频目标模态，暂定第1阶
+mode_high=2       ! 高频目标模态，暂定第2阶
+xi=0.05           ! 目标阻尼比5%
 
 ! ========== 建立模型 ==========
 ! 管体
@@ -155,27 +161,14 @@ ALLSEL
     Fwave=A_mor*u*ABS(u)+B_mor*a
     Fwave_arr(i)=Fwave
 *ENDDO
-
-FINISH
-
-! ========== 瞬态分析（斜坡净浮力） ==========
-/SOLU
-ANTYPE,4
-TRNOPT,FULL
-TIMINT,ON
-KBC,0
-
-! 瑞利阻尼
-xi=0.05
-omega1_est=0.628
-ALPHAD,0
-BETAD,2*xi/omega1_est
+! ========== 净浮力及管体节点信息 ==========
 
 ! 净浮力总值
 Vol_displaced=S2*LT
 Fnet_N=(BWR-1)*rho_water*g*Vol_displaced
+q_buoy_static=Fnet_N/LT
 
-! 获取管体节点，并建立管体节点组件
+! 建立管体节点组件
 ESEL,S,TYPE,,1
 NSLE,S
 CM,TUNNEL_NODES,NODE
@@ -185,26 +178,204 @@ Le_tunnel=LT/(Nnode_tunnel-1)
 
 ALLSEL,ALL
 
-! 斜坡持续时间（秒）
-t_ramp=2.1   ! 2.1秒内净浮力从0增加到目标值
+FINISH
+
+! ============================================================
+! 1. 非线性静力平衡：建立净浮力作用下的预应力状态
+! ============================================================
+/SOLU
+ANTYPE,STATIC
+NLGEOM,ON
+KBC,0
+
+! 静力平衡求解控制：初始20子步，最多100子步
+AUTOTS,ON
+NSUBST,20,100,1
+TIME,1.0
+
+! 保存最后一个收敛点，供线性扰动模态分析使用
+RESCONTROL,DEFINE,LAST,LAST
+OUTRES,ALL,LAST
+
+! 清除可能残留的节点力
+ALLSEL,ALL
+FDELE,ALL,ALL
+
+! ---------- 内部管体节点：完整净浮力权重 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,U,LOC,X,0
+NSEL,U,LOC,X,LT
+F,ALL,FY,q_buoy_static*Le_tunnel
+
+! ---------- 左端节点：半权重 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,R,LOC,X,0
+F,ALL,FY,0.5*q_buoy_static*Le_tunnel
+
+! ---------- 右端节点：半权重 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,R,LOC,X,LT
+F,ALL,FY,0.5*q_buoy_static*Le_tunnel
+
+ALLSEL,ALL
+SOLVE
+FINISH
+
+
+! ============================================================
+! 2. 基于静力平衡状态的预应力模态分析
+! ============================================================
+/SOLU
+
+! 从上一静力分析的最后收敛点进行线性扰动
+ANTYPE,STATIC,RESTART,,,PERTURB
+
+! MODAL：线性扰动模态
+! PARKEEP：保留位移约束，删除外部机械荷载；
+! 静力应力状态仍包含在切线刚度中
+PERTURB,MODAL,,,PARKEEP
+
+! 根据静力平衡状态重新形成单元矩阵
+SOLVE,ELFORM
+
+! Block Lanczos 提取前 nmode 阶模态
+MODOPT,LANB,nmode
+MXPAND,nmode,,,YES
+OUTRES,ALL,ALL
+SOLVE
+
+! 读取各阶模态频率，*GET得到的是Hz
+*DIM,freq_hz,ARRAY,nmode
+*DO,im,1,nmode
+    *GET,freq_hz(im),MODE,im,FREQ
+*ENDDO
+
+! 输出频率数组，便于检查
+*STATUS,freq_hz
+
+! 选择两个目标模态频率
+freq_low_hz=freq_hz(mode_low)
+freq_high_hz=freq_hz(mode_high)
+
+! Hz转换为圆频率 rad/s
+omega_low=2*PI*freq_low_hz
+omega_high=2*PI*freq_high_hz
+
+! 两频点瑞利阻尼系数
+alpha_ray=2*xi*omega_low*omega_high/(omega_low+omega_high)
+beta_ray=2*xi/(omega_low+omega_high)
+
+*STATUS,omega_low
+*STATUS,omega_high
+*STATUS,alpha_ray
+*STATUS,beta_ray
+
+FINISH
+
+
+! ============================================================
+! 3. 完整瞬态分析
+! ============================================================
+/SOLU
+ANTYPE,TRANS
+TRNOPT,FULL
+NLGEOM,ON
+KBC,0
+
+! ------------------------------------------------------------
+! 3.1 瞬态分析的初始静力平衡步
+! ------------------------------------------------------------
+TIMINT,OFF
+
+! 静力平衡步不需要动力阻尼
+ALPHAD,0
+BETAD,0
+
+ALLSEL,ALL
+FDELE,ALL,ALL
+
+! ---------- 内部节点净浮力 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,U,LOC,X,0
+NSEL,U,LOC,X,LT
+F,ALL,FY,q_buoy_static*Le_tunnel
+
+! ---------- 左端净浮力 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,R,LOC,X,0
+F,ALL,FY,0.5*q_buoy_static*Le_tunnel
+
+! ---------- 右端净浮力 ----------
+CMSEL,S,TUNNEL_NODES
+NSEL,R,LOC,X,LT
+F,ALL,FY,0.5*q_buoy_static*Le_tunnel
+
+ALLSEL,ALL
+
+! ============================================================
+! 静力载荷步1：净浮力在伪时间2.1内逐步施加
+! TIMINT,OFF，因此这里不是实际动力时间，不产生惯性
+! ============================================================
+KBC,0
+t_static_ramp=2.1
+TIME,t_static_ramp
+
+AUTOTS,ON
+NSUBST,20,100,1
+
+OUTRES,ERASE
+OUTRES,ALL,LAST
+SOLVE
+
+
+! ============================================================
+! 静力载荷步2：保持完整净浮力，使初速度、初加速度趋于零
+! ============================================================
+KBC,1
+AUTOTS,OFF
+
+t_static_hold=0.1
+TIME,t_static_ramp+t_static_hold
+
+! 至少两个子步，两个子步中的荷载和静力位移保持不变
+NSUBST,2,2,2
+SOLVE
+
+! 波浪动力分析开始时对应的总时间
+t_dyn0=t_static_ramp+t_static_hold
+
+
+! ------------------------------------------------------------
+! 3.2 开启惯性和阻尼，进入波浪动力响应
+! ------------------------------------------------------------
+TIMINT,ON
+KBC,0
+
+! 使用预应力模态求得的瑞利阻尼
+ALPHAD,alpha_ray
+BETAD,beta_ray
+
+! 名义时间步为dt，必要时允许自动二分至dt/10
+AUTOTS,ON
+DELTIM,dt,dt/10,dt,OFF
 
 OUTRES,ALL,ALL
+
 *DO,it,1,nstep
+
+    ! t为波浪作用开始后的相对时间
     t=time_arr(it)
-    TIME,t
 
-    ! 净浮力荷载因子（线性斜坡）
-    *IF,t,LT,t_ramp,THEN
-        factor=t/t_ramp
-    *ELSE
-        factor=1.0
-    *ENDIF
+    ! 实际求解时间包含前面的虚拟静力时间
+    TIME,t_dyn0+t
 
-    ! 当前时间步的均布线荷载
+    ! 当前波浪线荷载，单位N/m
     q_wave=Fwave_arr(it)
-    q_buoy=factor*Fnet_N/LT
 
-    ! ---------- 内部管体节点：完整权重 q*Le ----------
+    ! 净浮力已经静力平衡，动态阶段保持完整值
+    q_buoy=q_buoy_static
+
+    ! ---------- 内部管体节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,U,LOC,X,0
     NSEL,U,LOC,X,LT
@@ -212,14 +383,14 @@ OUTRES,ALL,ALL
     F,ALL,FZ,q_wave*Le_tunnel
     F,ALL,FY,q_buoy*Le_tunnel
 
-    ! ---------- 左端节点：半权重 q*Le/2 ----------
+    ! ---------- 左端节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,R,LOC,X,0
 
     F,ALL,FZ,0.5*q_wave*Le_tunnel
     F,ALL,FY,0.5*q_buoy*Le_tunnel
 
-    ! ---------- 右端节点：半权重 q*Le/2 ----------
+    ! ---------- 右端节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,R,LOC,X,LT
 
@@ -227,20 +398,25 @@ OUTRES,ALL,ALL
     F,ALL,FY,0.5*q_buoy*Le_tunnel
 
     ALLSEL,ALL
-
     SOLVE
+
 *ENDDO
+
 FINISH
 
 
 ! ========== 后处理 + 数据提取 ==========
 
+FINISH
 
-! ---------- 1. 基本后处理：弯矩图、剪力图、位移时程 ----------
+! ------------------------------------------------------------
+! 1. POST1：最后时刻弯矩和剪力
+! ------------------------------------------------------------
 /POST1
 SET,LAST
 
 ESEL,S,TYPE,,1
+
 ETABLE,MIY,SMISC,2
 ETABLE,MJY,SMISC,15
 ETABLE,MIZ,SMISC,3
@@ -249,6 +425,7 @@ ETABLE,MJZ,SMISC,16
 /DSCALE,1,1
 /AUTO,1
 EPLOT
+
 PLLS,MIY,MJY,-1
 PLLS,MIZ,MJZ,-1
 
@@ -256,21 +433,33 @@ ETABLE,QIY,SMISC,6
 ETABLE,QJY,SMISC,19
 ETABLE,QIZ,SMISC,5
 ETABLE,QJZ,SMISC,18
+
 PLLS,QIY,QJY,-1
 PLLS,QIZ,QJZ,-1
 
-! ---------- 2. 定义中点节点（用于时程提取） ----------
+
+! 定义跨中管体节点
+ALLSEL,ALL
 NSEL,S,LOC,X,LT/2-0.1,LT/2+0.1
 NSEL,R,LOC,Y,-HS
-*GET, mid_node, NODE, 0, NUM, MIN
+*GET,mid_node,NODE,0,NUM,MIN
 ALLSEL,ALL
 
+FINISH
+
+
+! ------------------------------------------------------------
+! 2. POST26：跨中位移时间历程
+! ------------------------------------------------------------
 /POST26
+
 NSOL,2,mid_node,U,Y,disp_y
 NSOL,3,mid_node,U,Z,disp_z
+
 /AXLAB,X,Time (s)
 /AXLAB,Y,Displacement (m)
+
 PLVAR,2,3
 /REPLOT
 
-
+FINISH

@@ -1,0 +1,212 @@
+FINISH
+/CLEAR,NOSTART
+/PREP7
+
+! ========== 几何与结构参数 ==========
+R1=5.3
+R2=6.3
+R3=0.08
+R4=0.08
+PI=3.1415926
+S2=PI*R2**2
+S3=PI*R3**2
+S4=PI*R4**2
+BWR=1.2
+LT=1200
+LS=75
+N=LT/LS
+HT=300
+HS=30
+LL=HT-HS
+D0=15
+D1=1
+D2=1
+*AFUN,DEG
+TH=45
+
+! ========== 波流参数 ==========
+rho_water=1025
+g=9.81
+Cd=0.7
+Cm=2.0
+Hwave=3.0
+Twave=6.0
+Uc=0.0
+!            莫里森方程
+omega=2*PI/Twave
+kwave=omega**2/g
+z_tunnel=-HS
+att_exp=EXP(kwave*z_tunnel)
+umax_surface=PI*Hwave/Twave
+umax_tunnel=umax_surface*att_exp
+amax_tunnel=omega*umax_tunnel
+D_out=2*R2
+A_mor=0.5*Cd*rho_water*D_out
+B_mor=Cm*rho_water*(PI*D_out**2/4)
+
+t_end=10*Twave       ! 总时长
+dt=Twave/20
+nstep=NINT(t_end/dt)+1
+
+! ========== 建立模型 ==========
+! 管体
+ET,1,BEAM188
+MP,EX,1,3.45e10
+MP,PRXY,1,0.2
+MP,DENS,1,2550
+SECTYPE,1,BEAM,CTUBE,,0
+SECDATA,R1,R2,20
+
+*DO,i,1,N+1
+    K,i, LS*(i-1), -HS, 0
+*ENDDO
+*DO,i,1,N
+    L,i,i+1
+*ENDDO
+ALLSEL
+LATT,1,,1,,,,1
+LESIZE,ALL,,,D0
+LMESH,ALL
+
+! 刚臂
+ET,2,BEAM188
+MP,EX,2,3.45e13
+MP,PRXY,2,0.2
+MP,DENS,2,0
+SECTYPE,2,BEAM,CSOLID,,0
+SECDATA,0.1
+
+*DO,i,1,N/2
+    K,i+100, LS*(2*i-1), -HS, R2
+    K,i+200, LS*(2*i-1), -HS, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,2*i,i+200
+    L,2*i,i+100
+*ENDDO
+LSEL,S,LOC,Z,-1,1
+LSEL,INVE
+LATT,2,,2,,,,2
+LESIZE,ALL,,,1
+LMESH,ALL
+
+! 斜缆
+ET,3,LINK180
+MP,EX,3,2.10e11
+MP,PRXY,3,0.3
+MP,DENS,3,7850
+SECTYPE,3,LINK
+SECDATA,S3
+
+*DO,i,1,N/2
+    K,i+1000, LS*(2*i-1), -HT, R2+LL/TAN(TH)
+    K,i+2000, LS*(2*i-1), -HT, -R2-LL/TAN(TH)
+*ENDDO
+*DO,i,1,N/2
+    L,i+1000,i+100
+    L,i+2000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,2
+LATT,3,,3,,,,3
+LESIZE,ALL,,,D1
+LMESH,ALL
+
+! 竖缆
+ET,4,LINK180
+MP,EX,4,2.10e11
+MP,PRXY,4,0.3
+MP,DENS,4,7850
+SECTYPE,4,LINK
+SECDATA,S4
+
+*DO,i,1,N/2
+    K,i+3000, LS*(2*i-1), -HT, R2
+    K,i+4000, LS*(2*i-1), -HT, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,i+3000,i+100
+    L,i+4000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,3
+LATT,4,,4,,,,4
+LESIZE,ALL,,,D2
+LMESH,ALL
+
+! 边界条件
+KSEL,S,,,1
+KSEL,A,,,N+1
+NSLK
+D,ALL,ALL,0
+NSEL,S,LOC,Y,-HT-1,-HT+1
+D,ALL,ALL,0
+ALLSEL
+
+! ========== 静力平衡 ==========
+FINISH
+/SOLU
+ANTYPE,STATIC
+NLGEOM,ON
+NROPT,FULL
+AUTOTS,ON
+NSUBST,20,100,1
+TIME,1.0
+KBC,0
+OUTRES,ALL,ALL
+RESCONTROL,DEFINE,ALL,1
+
+! 总净浮力
+Vol_displaced=S2*LT
+Fnet_N=(BWR-1)*rho_water*g*Vol_displaced
+
+! 转换为沿管体的均布线荷载 N/m
+q_net=Fnet_N/LT
+
+! 对管体BEAM188施加均布净浮力
+! 管体局部y方向与全局Y方向一致
+ESEL,S,TYPE,,1
+SFBEAM,ALL,2,PRES,-q_net
+ALLSEL,ALL
+
+SOLVE
+FINISH
+
+
+! ========== 预应力模态分析 ==========
+/SOLU
+ANTYPE,STATIC,RESTART,,,PERTURB
+PERTURB,MODAL
+SOLVE,ELFORM
+
+MODOPT,LANB,20
+MXPAND,20,,,YES
+SOLVE
+
+! 提取一阶频率
+*GET,f1_hz,MODE,1,FREQ
+omega1_calc=2*PI*f1_hz
+*STATUS,f1_hz
+*STATUS,omega1_calc
+
+FINISH
+
+
+! ========== 查看静力结果 ==========
+/POST1
+FILE,,RST
+SET,LAST
+PLDISP,2
+PRRSOL
+FINISH
+
+
+! ========== 查看模态结果 ==========
+/POST1
+FILE,,RSTP
+SET,LIST
+
+! 显示一阶振型
+SET,1,1
+PLDISP,2
+FINISH
