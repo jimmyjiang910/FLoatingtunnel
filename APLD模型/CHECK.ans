@@ -1,5 +1,7 @@
 FINISH
 /POST1
+ALLSEL,ALL
+RSYS,0
 SET,LAST
 
 ! 1. 位移云图（看极值）
