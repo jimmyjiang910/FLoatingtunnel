@@ -12,6 +12,21 @@ PLNSOL, U, SUM, 0, 1.0    ! 总位移 → 记录 SMX
 ! 2. 管体内力云图（先选管体单元）
 ESEL,S,TYPE,,1
 
+!定义管体内力表
+ETABLE,ERAS
+
+ETABLE,MIY,SMISC,2
+ETABLE,MJY,SMISC,15
+
+ETABLE,MIZ,SMISC,3
+ETABLE,MJZ,SMISC,16
+
+ETABLE,QIY,SMISC,6
+ETABLE,QJY,SMISC,19
+
+ETABLE,QIZ,SMISC,5
+ETABLE,QJZ,SMISC,18
+
 ! 弯矩图（已经定义过，直接画）
 PLLS,MIY,MJY,-1           ! 绕Y轴弯矩 → 记录 SMX/SMN
 PLLS,MIZ,MJZ,-1           ! 绕Z轴弯矩 → 记录 SMX/SMN
