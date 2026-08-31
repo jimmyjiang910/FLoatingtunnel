@@ -37,7 +37,7 @@ PLLS,QIZ,QJZ,-1           ! Z方向剪力 → 记录 MAX/MIN
 
 ! 轴力图（如果需要，临时定义并画）
 ETABLE,AXI_I,SMISC,1
-ETABLE,AXI_J,SMISC,7
+ETABLE,AXI_J,SMISC,14
 PLLS,AXI_I,AXI_J,-1       ! 轴力 → 记录 SMX
 
 ! 扭矩图（如果需要，临时定义并画）
