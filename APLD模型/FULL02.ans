@@ -13,7 +13,7 @@ S2=PI*R2**2
 S3=PI*R3**2
 S4=PI*R4**2
 BWR=1.1      !(1.1 1.3 1.5 1.7 1.9)
-LT=1200
+LT=4800
 LS=100
 N=LT/LS
 HT=100
@@ -176,7 +176,28 @@ CM,TUNNEL_NODES,NODE
 *GET,Nnode_tunnel,NODE,0,COUNT
 Le_tunnel=LT/(Nnode_tunnel-1)
 
+! =========================================================
+! 定义管体中跨节点
+! 中跨坐标：X=LT/2，Y=-HS，Z=0
+! =========================================================
 ALLSEL,ALL
+
+MID_TOL=0.1
+
+NSEL,S,LOC,X,LT/2-MID_TOL,LT/2+MID_TOL
+NSEL,R,LOC,Y,-HS-MID_TOL,-HS+MID_TOL
+NSEL,R,LOC,Z,-MID_TOL,MID_TOL
+
+*GET,N_MID,NODE,0,NUM,MIN
+
+ALLSEL,ALL
+
+! 检查是否找到节点
+*IF,N_MID,LE,0,THEN
+    /COM,ERROR: N_MID WAS NOT FOUND
+    /COM,CHECK LT, HS AND MID_TOL
+    *ABORT
+*ENDIF
 
 FINISH
 
@@ -404,69 +425,3 @@ OUTRES,ALL,ALL
 
 FINISH
 
-
-! ========== 后处理 + 数据提取 ==========
-
-FINISH
-
-! ------------------------------------------------------------
-! 1. POST1：最后时刻弯矩和剪力
-! ------------------------------------------------------------
-/POST1
-SET,LAST
-
-ESEL,S,TYPE,,1
-
-ETABLE,MIY,SMISC,2
-ETABLE,MJY,SMISC,15
-ETABLE,MIZ,SMISC,3
-ETABLE,MJZ,SMISC,16
-
-/DSCALE,1,1
-/AUTO,1
-EPLOT
-
-PLLS,MIY,MJY,-1
-PLLS,MIZ,MJZ,-1
-
-ETABLE,QIY,SMISC,6
-ETABLE,QJY,SMISC,19
-ETABLE,QIZ,SMISC,5
-ETABLE,QJZ,SMISC,18
-
-PLLS,QIY,QJY,-1
-PLLS,QIZ,QJZ,-1
-
-
-! 定义跨中管体节点
-! 先限定为管体节点，避免用变形后的Y坐标进行精确筛选
-ALLSEL,ALL
-CMSEL,S,TUNNEL_NODES
-NSEL,R,LOC,X,LT/2-0.1,LT/2+0.1
-
-*GET,mid_node,NODE,0,NUM,MIN
-*GET,Nmid_count,NODE,0,COUNT
-
-*STATUS,mid_node
-*STATUS,Nmid_count
-
-ALLSEL,ALL
-
-FINISH
-
-
-! ------------------------------------------------------------
-! 2. POST26：跨中位移时间历程
-! ------------------------------------------------------------
-/POST26
-
-NSOL,2,mid_node,U,Y,disp_y
-NSOL,3,mid_node,U,Z,disp_z
-
-/AXLAB,X,Time (s)
-/AXLAB,Y,Displacement (m)
-
-PLVAR,2,3
-/REPLOT
-
-FINISH
