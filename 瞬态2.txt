@@ -1,0 +1,344 @@
+FINISH
+/CLEAR,NOSTART
+/PREP7
+
+! ==================================================
+!  悬浮隧道 SFT - 静力平衡 + 波流瞬态动力分析
+!  单位制：国际单位 (m, kg, s, N, Pa)
+! ==================================================
+
+! ========== 1. 几何与结构参数 ==========
+R1=5.3
+R2=6.3
+R3=0.08
+R4=0.08
+PI=3.1415926535
+S2=PI*R2**2
+S_pipe=PI*(R2**2-R1**2)
+S3=PI*R3**2
+S4=PI*R4**2
+BWR=1.2
+LT=1200
+LS=75
+N=LT/LS
+HT=300
+HS=30
+LL=HT-HS
+D0=15
+D1=2
+D2=2
+TH=45
+
+! ========== 2. 波流与Morison参数 ==========
+rho_water=1025
+g=9.81
+Cd=0.7
+Cm=2.0
+Hwave=3.0
+Twave=6.0
+Uc=0.0
+
+omega=2*PI/Twave
+kwave=omega**2/g
+z_tunnel=-HS
+att_exp=EXP(kwave*z_tunnel)
+umax_surface=PI*Hwave/Twave
+umax_tunnel=umax_surface*att_exp
+amax_tunnel=omega*umax_tunnel
+D_out=2*R2
+A_mor=0.5*Cd*rho_water*D_out
+B_mor=Cm*rho_water*(PI*D_out**2/4)
+
+t_end=6*Twave
+dt=Twave/20
+nstep=NINT(t_end/dt)+1
+t_static=10.0
+
+! ========== 3. 预应力参数 ==========
+T0=8e6
+N_pre=2.5e7
+E_cable=2.10e11
+E_pipe=3.45e10
+
+! ========== 4. 单元、材料、截面 ==========
+ET,1,BEAM188
+MP,EX,1,E_pipe
+MP,PRXY,1,0.2
+MP,DENS,1,2550
+SECTYPE,1,BEAM,CTUBE,,0
+SECDATA,R1,R2,20
+
+ET,2,BEAM188
+MP,EX,2,3.45e13
+MP,PRXY,2,0.2
+MP,DENS,2,1e-6
+SECTYPE,2,BEAM,CSOLID,,0
+SECDATA,0.1
+
+ET,3,LINK180
+MP,EX,3,E_cable
+MP,PRXY,3,0.3
+MP,DENS,3,7850
+SECTYPE,3,LINK
+SECDATA,S3
+
+ET,4,LINK180
+MP,EX,4,E_cable
+MP,PRXY,4,0.3
+MP,DENS,4,7850
+SECTYPE,4,LINK
+SECDATA,S4
+
+! ========== 5. 几何建模 ==========
+*DO,i,1,N+1
+    K,i, LS*(i-1), -HS, 0
+*ENDDO
+*DO,i,1,N
+    L,i,i+1
+*ENDDO
+ALLSEL
+LATT,1,,1,,,,1
+LESIZE,ALL,,,D0
+LMESH,ALL
+
+*DO,i,1,N/2
+    K,i+100, LS*(2*i-1), -HS, R2
+    K,i+200, LS*(2*i-1), -HS, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,2*i,i+200
+    L,2*i,i+100
+*ENDDO
+LSEL,S,LOC,Z,-1,1
+LSEL,INVE
+LATT,2,,2,,,,2
+LESIZE,ALL,,,1
+LMESH,ALL
+
+*DO,i,1,N/2
+    K,i+1000, LS*(2*i-1), -HT, R2+LL/TAN(TH)
+    K,i+2000, LS*(2*i-1), -HT, -R2-LL/TAN(TH)
+*ENDDO
+*DO,i,1,N/2
+    L,i+1000,i+100
+    L,i+2000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,2
+LATT,3,,3,,,,3
+LESIZE,ALL,,,D1
+LMESH,ALL
+
+*DO,i,1,N/2
+    K,i+3000, LS*(2*i-1), -HT, R2
+    K,i+4000, LS*(2*i-1), -HT, -R2
+*ENDDO
+*DO,i,1,N/2
+    L,i+3000,i+100
+    L,i+4000,i+200
+*ENDDO
+ALLSEL
+LSEL,U,TYPE,,1,3
+LATT,4,,4,,,,4
+LESIZE,ALL,,,D2
+LMESH,ALL
+
+! ========== 6. 缆索预张力（初应变法） ==========
+ESEL,S,TYPE,,3
+*GET,num_cab3,ELEM,0,COUNT
+*DO,ie,1,num_cab3
+    *GET,eid,ELEM,0,NUM,MIN
+    eps0=T0/(E_cable*S3)
+    INISTATE,SET,DEFI,ELEM,eid
+    INISTATE,DEFINE,1,,,eps0
+    ESEL,U,ELEM,,eid
+*ENDDO
+
+ESEL,S,TYPE,,4
+*GET,num_cab4,ELEM,0,COUNT
+*DO,ie,1,num_cab4
+    *GET,eid,ELEM,0,NUM,MIN
+    eps0=T0/(E_cable*S4)
+    INISTATE,SET,DEFI,ELEM,eid
+    INISTATE,DEFINE,1,,,eps0
+    ESEL,U,ELEM,,eid
+*ENDDO
+ALLSEL
+
+! ========== 7. 管体轴向预应力（初应变法） ==========
+eps_pipe=N_pre/(E_pipe*S_pipe)
+ESEL,S,TYPE,,1
+*GET,num_pipe_elem,ELEM,0,COUNT
+*DO,ie,1,num_pipe_elem
+    *GET,eid,ELEM,0,NUM,MIN
+    INISTATE,SET,DEFI,ELEM,eid
+    INISTATE,DEFINE,1,,,eps_pipe
+    ESEL,U,ELEM,,eid
+*ENDDO
+ALLSEL
+
+! ========== 8. 边界条件 ==========
+KSEL,S,,,1
+KSEL,A,,,N+1
+NSLK
+D,ALL,ALL,0
+NSEL,S,LOC,Y,-HT-1,-HT+1
+D,ALL,ALL,0
+ALLSEL
+
+! ========== 9. 预生成波浪力时程数组 ==========
+*DIM,time_arr,ARRAY,nstep
+*DIM,Fwave_arr,ARRAY,nstep
+*DO,i,1,nstep
+    t=i*dt
+    time_arr(i)=t
+    u=umax_tunnel*COS(omega*t)+Uc
+    a=-umax_tunnel*omega*SIN(omega*t)
+    Fwave=A_mor*u*ABS(u)+B_mor*a
+    Fwave_arr(i)=Fwave
+*ENDDO
+
+! 诊断：输出波浪力峰值
+*GET,fwave_max,ARRAY,Fwave_arr,MAX,0
+*STATUS,fwave_max
+
+FINISH
+
+! ==================================================
+!  第一阶段：静力平衡（t=0 ~ 10s）
+! ==================================================
+/SOLU
+ANTYPE,STATIC
+NLGEOM,ON
+EQSLV,SPARSE
+
+W_pipe=2550*g*S_pipe*LT
+Fnet_N=(BWR-1)*W_pipe
+
+ESEL,S,TYPE,,1
+NSLE,S
+*GET,Nnode_tunnel,NODE,0,COUNT
+ALLSEL
+
+TIME,t_static
+NSUBST,50
+OUTRES,ALL,ALL
+
+ESEL,S,TYPE,,1
+NSLE,S
+F,ALL,FY, Fnet_N/Nnode_tunnel
+ALLSEL
+
+SOLVE
+
+! ==================================================
+!  第二阶段：瞬态动力分析（t=10 ~ 46s）
+! ==================================================
+ANTYPE,TRANS
+TRNOPT,FULL
+TIMINT,ON
+NLGEOM,ON
+AUTOTS,ON
+DELTIM,dt, dt/5, dt*2
+
+xi=0.05
+omega1_est=0.628
+ALPHAD,0
+BETAD,2*xi/omega1_est
+
+OUTRES,ALL,ALL
+
+! 获取管体节点数（用于换算节点集中力）
+ESEL,S,TYPE,,1
+NSLE,S
+*GET,nnode_tunnel,NODE,0,COUNT
+ALLSEL
+
+*DO,it,1,nstep
+    t=t_static + time_arr(it)
+    TIME,t
+    f_cur=Fwave_arr(it)
+
+    ! 诊断：每10步打印一次当前波浪力
+    *IF,MOD(it,10),EQ,0,THEN
+        *STATUS,it,f_cur
+    *ENDIF
+
+    ! 施加Z方向波浪力（节点集中力，最可靠方式）
+    ESEL,S,TYPE,,1
+    NSLE,S
+    F,ALL,FZ, f_cur*LT/nnode_tunnel
+    ALLSEL
+
+    SOLVE
+*ENDDO
+
+FINISH
+
+! ==================================================
+!  后处理
+! ==================================================
+
+! ---------- /POST1：最终时刻 ----------
+/POST1
+SET,LAST
+PLDISP,1
+
+! Z方向位移云图（验证波浪力是否生效）
+PLNSOL,U,Z
+
+! 管体弯矩
+ESEL,S,TYPE,,1
+ETABLE,MIY,SMISC,2
+ETABLE,MJY,SMISC,15
+ETABLE,MIZ,SMISC,3
+ETABLE,MJZ,SMISC,16
+PLLS,MIZ,MJZ,-1
+PLLS,MIY,MJY,-1
+
+! 缆索张力
+ALLSEL
+ESEL,S,TYPE,,3,4
+ETABLE,CF,SMISC,1
+PLLS,CF,CF,-1
+
+! ---------- /POST26：时程曲线 ----------
+/POST26
+NUMVAR,20
+
+! 跨中节点
+NSEL,S,LOC,X,LT/2-0.1,LT/2+0.1
+NSEL,R,LOC,Y,-HS
+*GET,mid_node,NODE,0,NUM,MIN
+ALLSEL
+NSOL,2,mid_node,U,Y,disp_y
+NSOL,3,mid_node,U,Z,disp_z
+
+! 中间竖缆张力
+ESEL,S,TYPE,,4
+NSLE,S
+NSEL,R,LOC,X,525,675
+ESLN,S
+ESEL,R,TYPE,,4
+*GET,cab_mid,ELEM,0,NUM,MIN
+ALLSEL
+ESOL,4,cab_mid,,SMISC,1,cable_force_mid
+
+! 绘图
+/AXLAB,X,Time (s)
+/AXLAB,Y,Displacement (m)
+PLVAR,2,3
+
+/AXLAB,Y,Cable Force (N)
+PLVAR,4
+
+! 极值
+*GET,max_dz,VARI,3,EXTREM,MAX
+*GET,min_dz,VARI,3,EXTREM,MIN
+*GET,max_dy,VARI,2,EXTREM,MAX
+*GET,min_dy,VARI,2,EXTREM,MIN
+*GET,max_cab,VARI,4,EXTREM,MAX
+*GET,min_cab,VARI,4,EXTREM,MIN
+*STATUS,max_dy,min_dy,max_dz,min_dz,max_cab,min_cab
+
+FINISH
