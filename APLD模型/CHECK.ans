@@ -1,3 +1,4 @@
+/PMACRO
 FINISH
 /POST1
 ALLSEL,ALL
@@ -67,3 +68,29 @@ PLETAB,CABLE_F,NOAV
 
 ALLSEL,ALL
 FINISH
+! =========================================================
+! 中跨节点Y、Z方向位移时程图
+! =========================================================
+ALLSEL,ALL
+FINISH
+/POST26
+
+NUMVAR,20
+XVAR,1
+
+! 变量2：中跨Y向竖向位移
+NSOL,2,N_MID,U,Y,UY_MID
+
+! 变量3：中跨Z向横向位移
+NSOL,3,N_MID,U,Z,UZ_MID
+
+/GFORMAT,DEFA
+/GROPT,DIG1,4
+/GROPT,DIG2,6
+
+/GRID,1
+/AXLAB,X,Time (s)
+/AXLAB,Y,Displacement (m)
+/TITLE,Midspan Y and Z Displacement Time History
+
+PLVAR,2,3
