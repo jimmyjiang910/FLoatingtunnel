@@ -3,9 +3,20 @@ FINISH
 ALLSEL,ALL
 RSYS,0
 SET,LAST !最后时间
-!SET,NEAR,,,,t_check ！(最大响应时间)
+!SET,NEAR,,,,t_check !(最大响应时间)
+ALLSEL,ALL
 
 ! 1. 位移云图（看极值）
+/VIEW,1,0,0,1
+/VUP,1,Y
+/AUTO,1
+
+PLNSOL, U, Y,0,1.0
+
+/DIST,1,0.5,1       ! 放大约1.33倍
+/REPLOT
+
+/IMAGE,SAVE,,PNG
 PLNSOL, U, Y, 0, 1.0      ! 竖向位移 → 记录 SMX
 PLNSOL, U, Z, 0, 1.0      ! 横向位移 → 记录 SMN
 PLNSOL, U, SUM, 0, 1.0    ! 总位移 → 记录 SMX
