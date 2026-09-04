@@ -1,0 +1,48 @@
+FINISH
+/POST1
+ALLSEL, ALL
+RSYS, 0
+
+
+! ========== 自动提取极值并写入文件 ==========
+! 1. 读取要提取的时刻，可以替换成需要的时刻
+SET, LAST  
+
+! 2. 提取节点位移极值（Y向、Z向、总位移）
+NSORT, U, Y, 0, 0, ALL
+*GET, UY_MAX, SORT, 0, MAX
+*GET, UY_MIN, SORT, 0, MIN
+
+NSORT, U, Z, 0, 0, ALL
+*GET, UZ_MAX, SORT, 0, MAX
+*GET, UZ_MIN, SORT, 0, MIN
+
+NSORT, U, SUM, 0, 0, ALL
+*GET, U_Total_MAX, SORT, 0, MAX
+
+! 3. 提取管体内力极值（先选中管体，再定义表）
+ESEL, S, TYPE, , 1
+ETABLE, MIY, SMISC, 2
+ETABLE, MJY, SMISC, 15
+ESORT, ETAB, MIY, 0, 1
+*GET, MIY_MAX, SORT, 0, MAX
+ESORT, ETAB, MJY, 0, 1
+*GET, MJY_MAX, SORT, 0, MAX
+
+! 4. 提取锚索轴力极值（斜缆TYPE3，竖缆TYPE4）
+ALLSEL, ALL
+ESEL, S, TYPE, , 3
+ETABLE, CABLE_F, SMISC, 1
+ESORT, ETAB, CABLE_F, 0, 1
+*GET, CABLE3_MAX, SORT, 0, MAX
+
+! 5. 把提取到的所有极值写入一个 txt 文件
+! 文件路径不能有中文，否则会报错
+! 最好替换为绝对路径
+*CFOPEN, My_Results, txt, , APPEND
+*VWRITE, UY_MAX, UZ_MAX, U_Total_MAX, MIY_MAX, MJY_MAX, CABLE3_MAX
+(6F16.6)
+*CFCLOS
+
+! 6. 恢复全选
+ALLSEL, ALL

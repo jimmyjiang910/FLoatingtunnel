@@ -75,7 +75,6 @@ ETABLE,CABLE_F,SMISC,1
 /GRAPHICS,FULL
 PLETAB,CABLE_F,NOAV
 
-
 ALLSEL,ALL
 FINISH
 ! =========================================================
@@ -104,3 +103,23 @@ NSOL,3,N_MID,U,Z,UZ_MID
 /TITLE,Midspan Y and Z Displacement Time History
 
 PLVAR,2,3
+
+! ========== 自动捕捉稳态波峰 ==========
+! 1. 设定分析范围：跳过前 2.2 秒，只看后面的情况
+TIMERANGE, 2.2, t_end   !  t_end 是总时长（比如60）
+
+! 2. 提取变量 2（Y向位移）在稳定段的最大值和对应的时间
+*GET, U_MAX, VARI, 2, EXTREM, VMAX
+*GET, T_MAX, VARI, 2, EXTREM, TMAX
+
+! 3. 在屏幕上打印结果
+*STATUS, U_MAX
+*STATUS, T_MAX
+
+! ================== 绘制最大变形云图 ==================
+/POST1
+! 读取最大时刻
+SET, NEAR, , , , T_MAX
+
+! 画总位移云图
+PLNSOL, U, SUM, 0, 1.0 
