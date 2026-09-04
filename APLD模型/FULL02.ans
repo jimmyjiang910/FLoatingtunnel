@@ -35,7 +35,7 @@ Twave=6.0
 Uc=0.0
 
 omega=2*PI/Twave
-kwave=omega**2/g
+kwave=omega**2/g   !色散关系简化（近似解）
 z_tunnel=-HS
 att_exp=EXP(kwave*z_tunnel)
 umax_surface=PI*Hwave/Twave
@@ -45,7 +45,7 @@ D_out=2*R2
 A_mor=0.5*Cd*rho_water*D_out
 B_mor=Cm*rho_water*(PI*D_out**2/4)
 
-t_end=15*Twave       !收敛时间
+t_end=10*Twave       !收敛时间
 dt=Twave/20
 nstep=NINT(t_end/dt)
 ! ========== 模态与阻尼控制参数 ==========
@@ -149,17 +149,34 @@ NSEL,S,LOC,Y,-HT-1,-HT+1
 D,ALL,ALL,0
 ALLSEL
 
-! ========== 生成波浪力时间表 ==========
+! ========== 生成Y、Z双向波浪力时间表 ==========
 *AFUN,RAD
+
 *DIM,time_arr,ARRAY,nstep
-*DIM,Fwave_arr,ARRAY,nstep
+*DIM,FwaveY_arr,ARRAY,nstep
+*DIM,FwaveZ_arr,ARRAY,nstep
+
 *DO,i,1,nstep
+
     t=i*dt
     time_arr(i)=t
-    u=umax_tunnel*COS(omega*t)+Uc
-    a=-umax_tunnel*omega*SIN(omega*t)
-    Fwave=A_mor*u*ABS(u)+B_mor*a
-    Fwave_arr(i)=Fwave
+    phase=omega*t
+
+    ! Airy波水质点速度：Y、Z相差90度
+    vel_z=umax_tunnel*COS(phase)+Uc
+    vel_y=-umax_tunnel*SIN(phase)
+
+    ! 加速度必须由对应速度对时间求导
+    acc_z=-omega*umax_tunnel*SIN(phase)
+    acc_y=-omega*umax_tunnel*COS(phase)
+
+    ! 管轴沿X，因此Y、Z速度均属于管轴法向速度
+    vel_n=SQRT(vel_y**2+vel_z**2)
+
+    ! 矢量形式Morison线荷载，单位N/m
+    FwaveZ_arr(i)=A_mor*vel_n*vel_z+B_mor*acc_z
+    FwaveY_arr(i)=A_mor*vel_n*vel_y+B_mor*acc_y
+
 *ENDDO
 ! ========== 净浮力及管体节点信息 ==========
 
@@ -390,33 +407,34 @@ OUTRES,ALL,ALL
     ! 实际求解时间包含前面的虚拟静力时间
     TIME,t_dyn0+t
 
-    ! 当前波浪线荷载，单位N/m
-    q_wave=Fwave_arr(it)
+    ! 当前Y、Z向波浪线荷载，单位N/m
+    q_wave_z=FwaveZ_arr(it)
+    q_wave_y=FwaveY_arr(it)
 
-    ! 净浮力已经静力平衡，动态阶段保持完整值
-    q_buoy=q_buoy_static
+    ! Y方向总线荷载 = 恒定净浮力 + 时变竖向波浪力
+    q_force_y=q_buoy_static+q_wave_y
 
     ! ---------- 内部管体节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,U,LOC,X,0
     NSEL,U,LOC,X,LT
 
-    F,ALL,FZ,q_wave*Le_tunnel
-    F,ALL,FY,q_buoy*Le_tunnel
+    F,ALL,FZ,q_wave_z*Le_tunnel
+    F,ALL,FY,q_force_y*Le_tunnel
 
     ! ---------- 左端节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,R,LOC,X,0
 
-    F,ALL,FZ,0.5*q_wave*Le_tunnel
-    F,ALL,FY,0.5*q_buoy*Le_tunnel
+    F,ALL,FZ,0.5*q_wave_z*Le_tunnel
+    F,ALL,FY,0.5*q_force_y*Le_tunnel
 
     ! ---------- 右端节点 ----------
     CMSEL,S,TUNNEL_NODES
     NSEL,R,LOC,X,LT
 
-    F,ALL,FZ,0.5*q_wave*Le_tunnel
-    F,ALL,FY,0.5*q_buoy*Le_tunnel
+    F,ALL,FZ,0.5*q_wave_z*Le_tunnel
+    F,ALL,FY,0.5*q_force_y*Le_tunnel
 
     ALLSEL,ALL
     SOLVE
@@ -424,4 +442,3 @@ OUTRES,ALL,ALL
 *ENDDO
 
 FINISH
-
