@@ -7,17 +7,20 @@ SET,LAST !最后时间
 ALLSEL,ALL
 
 ! 1. 位移云图（看极值）
+
+! 竖向位移 → 记录 SMX
 /VIEW,1,0,0,1
 /VUP,1,Y
 /AUTO,1
 
 PLNSOL, U, Y,0,1.0
 
-/DIST,1,0.5,1       ! 放大约1.33倍
+/USER,1
+/FOCUS,1,0,0,0,0
+/DIST,1,0.2,1       ! 放大约5倍
 /REPLOT
 
-/IMAGE,SAVE,,PNG
-PLNSOL, U, Y, 0, 1.0      ! 竖向位移 → 记录 SMX
+/IMAGE,SAVE,'D:\111AAAjxy\FloatingTunnel\OUTPUT\tset\Y_diaaplacement',PNG   
 PLNSOL, U, Z, 0, 1.0      ! 横向位移 → 记录 SMN
 PLNSOL, U, SUM, 0, 1.0    ! 总位移 → 记录 SMX
 
