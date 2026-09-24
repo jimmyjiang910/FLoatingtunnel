@@ -23,7 +23,8 @@ D0=15
 D1=1
 D2=1
 *AFUN,DEG
-TH=45
+TH_1=45
+TH_2=0
 
 ! ========== 波流参数 ==========
 rho_water=1025
@@ -99,7 +100,7 @@ LATT,2,,2,,,,2
 LESIZE,ALL,,,1
 LMESH,ALL
 
-! 斜缆
+! 缆绳1(默认斜缆45°)
 ET,3,LINK180
 MP,EX,3,2.10e11
 MP,PRXY,3,0.3
@@ -108,8 +109,8 @@ SECTYPE,3,LINK
 SECDATA,S3
 
 *DO,i,1,N/2
-    K,i+1000, LS*(2*i-1), -HT, R2+LL/TAN(TH)
-    K,i+2000, LS*(2*i-1), -HT, -R2-LL/TAN(TH)
+    K,i+1000, LS*(2*i-1), -HT, R2+LL*TAN(TH_1)
+    K,i+2000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_1)
 *ENDDO
 *DO,i,1,N/2
     L,i+1000,i+100
@@ -121,7 +122,7 @@ LATT,3,,3,,,,3
 LESIZE,ALL,,,D1
 LMESH,ALL
 
-! 竖缆
+! 缆绳2(默认竖缆)
 ET,4,LINK180
 MP,EX,4,2.10e11
 MP,PRXY,4,0.3
@@ -130,8 +131,8 @@ SECTYPE,4,LINK
 SECDATA,S4
 
 *DO,i,1,N/2
-    K,i+3000, LS*(2*i-1), -HT, R2
-    K,i+4000, LS*(2*i-1), -HT, -R2
+    K,i+3000, LS*(2*i-1), -HT, R2+LL*TAN(TH_2)
+    K,i+4000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_2)
 *ENDDO
 *DO,i,1,N/2
     L,i+3000,i+100
