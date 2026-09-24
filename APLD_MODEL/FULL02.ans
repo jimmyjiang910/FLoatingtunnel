@@ -46,7 +46,7 @@ A_mor=0.5*Cd*rho_water*D_out
 B_mor=Cm*rho_water*(PI*D_out**2/4)
 
 t_end=10*Twave       !收敛时间
-dt=Twave/20
+dt=Twave/20          !dt=0.3
 nstep=NINT(t_end/dt)
 ! ========== 模态与阻尼控制参数 ==========
 nmode=20          ! 暂时提取前20阶模态
