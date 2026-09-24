@@ -30,9 +30,12 @@ rho_water=1025
 g=9.81
 Cd=0.7
 Cm=2.0
-Hwave=3.0
-Twave=6.0
-Uc=0.0
+/INPUT,WH1,ans,D:\111AAAjxy\FloatingTunnel\APLD_MODEL\wave_cases   !注意修改绝对路径
+! 检查参数是否读取成功
+! *STATUS,Hwave
+! *STATUS,Twave
+! *STATUS,Uc
+
 
 omega=2*PI/Twave
 kwave=omega**2/g   !色散关系简化（近似解）
