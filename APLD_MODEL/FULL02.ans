@@ -13,25 +13,19 @@ S2=PI*R2**2
 S3=PI*R3**2
 S4=PI*R4**2
 BWR=1.1      !(1.1 1.3 1.5 1.7 1.9)
-!管道跨长
-LT1=500
-LT2=1000
-LT3=3000
-LT4=5000
-LT5=10000
-LT=LT4
+LT=4800
 LS=100
 N=LT/LS
 HT=100
 HS=40
+LL=HT-HS
 D0=15
 D1=1
 D2=1
 *AFUN,DEG
 TH_1=45
-TH_2=90
-TH_3=60      !安装角
-LL=HT-HS-R2*cos(TH_3)
+TH_2=0
+
 ! ========== 波流参数 ==========
 rho_water=1025
 g=9.81
@@ -60,8 +54,6 @@ dt=Twave/20          !dt=0.3
 nstep=NINT(t_end/dt)
 ! ========== 模态与阻尼控制参数 ==========
 nmode=20          ! 暂时提取前20阶模态
-mode_low=1        ! 低频目标模态，暂定第1阶
-mode_high=2       ! 高频目标模态，暂定第2阶
 xi=0.05           ! 目标阻尼比5%
 
 ! ========== 建立模型 ==========
@@ -69,9 +61,16 @@ xi=0.05           ! 目标阻尼比5%
 ET,1,BEAM188
 MP,EX,1,3.45e10
 MP,PRXY,1,0.2
-MP,DENS,1,2550
+! ---- 由浮重比反算管体材料密度 ----
+! 定义: BWR = 浮力/管体自重 = rho_water*S2 / (rho_pipe*S1)
+! BEAM188+CTUBE 质量只由环形面积 S1 贡献；浮力按外轮廓面积 S2 计
+S1=PI*(R2**2-R1**2)
+rho_pipe=rho_water*S2/(BWR*S1)
+*STATUS,rho_pipe
+MP,DENS,1,rho_pipe
 SECTYPE,1,BEAM,CTUBE,,0
 SECDATA,R1,R2,20
+
 
 *DO,i,1,N+1
     K,i, LS*(i-1), -HS, 0
@@ -93,13 +92,14 @@ SECTYPE,2,BEAM,CSOLID,,0
 SECDATA,0.1
 
 *DO,i,1,N/2
-    K,i+100, LS*(2*i-1), -HS-R2*cos(TH_3), R2*SIN(TH_3)
-    K,i+200, LS*(2*i-1), -HS-R2*cos(TH_3), -R2*SIN(TH_3)
+    K,i+100, LS*(2*i-1), -HS, R2
+    K,i+200, LS*(2*i-1), -HS, -R2
 *ENDDO
 *DO,i,1,N/2
-    L,i+100,i+200
+    L,2*i,i+200
+    L,2*i,i+100
 *ENDDO
-LSEL,S,LOC,Y,-0.1,0.1
+LSEL,S,LOC,Z,-1,1
 LSEL,INVE
 LATT,2,,2,,,,2
 LESIZE,ALL,,,1
@@ -107,6 +107,7 @@ LMESH,ALL
 
 ! 缆绳1(默认斜缆45°)
 ET,3,LINK180
+KEYOPT,3,3,1
 MP,EX,3,2.10e11
 MP,PRXY,3,0.3
 MP,DENS,3,7850
@@ -114,8 +115,8 @@ SECTYPE,3,LINK
 SECDATA,S3
 
 *DO,i,1,N/2
-    K,i+1000, LS*(2*i-1), -HT, R2*SIN(TH_3)+LL/TAN(TH_1)
-    K,i+2000, LS*(2*i-1), -HT, -R2*SIN(TH_3)-LL/TAN(TH_1)
+    K,i+1000, LS*(2*i-1), -HT, R2+LL*TAN(TH_1)
+    K,i+2000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_1)
 *ENDDO
 *DO,i,1,N/2
     L,i+1000,i+100
@@ -129,6 +130,7 @@ LMESH,ALL
 
 ! 缆绳2(默认竖缆)
 ET,4,LINK180
+KEYOPT,4,3,1
 MP,EX,4,2.10e11
 MP,PRXY,4,0.3
 MP,DENS,4,7850
@@ -136,8 +138,8 @@ SECTYPE,4,LINK
 SECDATA,S4
 
 *DO,i,1,N/2
-    K,i+3000, LS*(2*i-1), -HT, R2*SIN(TH_3)+LL/TAN(TH_2)
-    K,i+4000, LS*(2*i-1), -HT, -R2*SIN(TH_3)-LL/TAN(TH_2)
+    K,i+3000, LS*(2*i-1), -HT, R2+LL*TAN(TH_2)
+    K,i+4000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_2)
 *ENDDO
 *DO,i,1,N/2
     L,i+3000,i+100
@@ -157,28 +159,6 @@ D,ALL,ALL,0
 NSEL,S,LOC,Y,-HT-1,-HT+1
 D,ALL,ALL,0
 ALLSEL
-
-! 管体中心与刚臂两端建立刚性连接
-ALLSEL,ALL
-
-ET,5,MPC184
-KEYOPT,5,1,1       ! 刚性梁：关联平移和转动
-KEYOPT,5,2,0       ! 直接消元法
-
-TYPE,5
-MAT,2              ! 使用已有零密度材料，不增加质量
-
-*DO,i,1,N/2
-    ! 获取关键点对应的实际节点编号
-    *GET,n_center,KP,2*i,ATTR,NODE
-    *GET,n_side1,KP,i+100,ATTR,NODE
-    *GET,n_side2,KP,i+200,ATTR,NODE
-
-    E,n_center,n_side1
-    E,n_center,n_side2
-*ENDDO
-
-ALLSEL,ALL
 
 ! ========== 生成Y、Z双向波浪力时间表 ==========
 *AFUN,RAD
@@ -212,9 +192,18 @@ ALLSEL,ALL
 ! ========== 净浮力及管体节点信息 ==========
 
 ! 净浮力总值
+! 净浮力总值：与 BWR 定义一致（净浮力 = 浮力 - 自重）
 Vol_displaced=S2*LT
-Fnet_N=(BWR-1)*rho_water*g*Vol_displaced
-q_buoy_static=Fnet_N/LT
+W_pipe=rho_pipe*g*S1*LT
+Fnet_N=(BWR-1)*W_pipe
+rho_steel=7850
+n_bent=N-1
+Lc_v=LL
+Lc_i=LL/COS(TH_1*PI/180)
+Wc_sub=(rho_steel-rho_water)*g*(2*S4*Lc_v+2*S3*Lc_i)*n_bent
+q_buoy_static=(Fnet_N-Wc_sub)/LT
+*STATUS,Wc_sub
+*STATUS,q_buoy_static
 
 ! 建立管体节点组件
 ESEL,S,TYPE,,1
@@ -319,28 +308,56 @@ SOLVE
     *GET,freq_hz(im),MODE,im,FREQ
 *ENDDO
 
-! 输出频率数组，便于检查
+! ---- 瑞利阻尼控制点自动选取 ----
+fw=1/Twave                 ! 波频 Hz
+ww=2*PI*fw                 ! 波圆频率
+w1_modal=2*PI*freq_hz(1)
+
+! 下限：波频低于基频时用波频，保证波频处阻尼=xi
+*IF,ww,LT,w1_modal,THEN
+    w_ctrl_lo=ww
+*ELSE
+    w_ctrl_lo=w1_modal
+*ENDIF
+
+! 上限：5倍波频以内的最高阶模态
+f_hi_band=5*fw
+mode_hi=1
+*DO,im,1,nmode
+    *IF,freq_hz(im),LE,f_hi_band,THEN
+        mode_hi=im
+    *ENDIF
+*ENDDO
+*IF,freq_hz(1),GT,f_hi_band,THEN
+    w_ctrl_hi=w1_modal
+*ELSE
+    w_ctrl_hi=2*PI*freq_hz(mode_hi)
+*ENDIF
+
+! 安全保护：上限必须大于下限
+*IF,w_ctrl_hi,LE,w_ctrl_lo,THEN
+    w_ctrl_hi=2*PI*freq_hz(nmode)
+*ENDIF
+
+alpha_ray=2*xi*w_ctrl_lo*w_ctrl_hi/(w_ctrl_lo+w_ctrl_hi)
+beta_ray =2*xi/(w_ctrl_lo+w_ctrl_hi)
+
+! 阻尼曲线校核
+xi_wave =alpha_ray/(2*ww)+beta_ray*ww/2
+xi_3wave=alpha_ray/(2*3*ww)+beta_ray*(3*ww)/2
+xi_f1   =alpha_ray/(2*w1_modal)+beta_ray*w1_modal/2
+
 *STATUS,freq_hz
-
-! 选择两个目标模态频率
-freq_low_hz=freq_hz(mode_low)
-freq_high_hz=freq_hz(mode_high)
-
-! Hz转换为圆频率 rad/s
-omega_low=2*PI*freq_low_hz
-omega_high=2*PI*freq_high_hz
-
-! 两频点瑞利阻尼系数
-alpha_ray=2*xi*omega_low*omega_high/(omega_low+omega_high)
-beta_ray=2*xi/(omega_low+omega_high)
-
-*STATUS,omega_low
-*STATUS,omega_high
+*STATUS,mode_hi
+*STATUS,w_ctrl_lo
+*STATUS,w_ctrl_hi
 *STATUS,alpha_ray
 *STATUS,beta_ray
+*STATUS,xi_wave
+*STATUS,xi_3wave
+*STATUS,xi_f1
 
 FINISH
-
 
 ! ============================================================
 ! 3. 完整瞬态分析
