@@ -158,6 +158,28 @@ NSEL,S,LOC,Y,-HT-1,-HT+1
 D,ALL,ALL,0
 ALLSEL
 
+! 管体中心与刚臂两端建立刚性连接
+ALLSEL,ALL
+
+ET,5,MPC184
+KEYOPT,5,1,1       ! 刚性梁：关联平移和转动
+KEYOPT,5,2,0       ! 直接消元法
+
+TYPE,5
+MAT,2              ! 使用已有零密度材料，不增加质量
+
+*DO,i,1,N/2
+    ! 获取关键点对应的实际节点编号
+    *GET,n_center,KP,2*i,ATTR,NODE
+    *GET,n_side1,KP,i+100,ATTR,NODE
+    *GET,n_side2,KP,i+200,ATTR,NODE
+
+    E,n_center,n_side1
+    E,n_center,n_side2
+*ENDDO
+
+ALLSEL,ALL
+
 ! ========== 生成Y、Z双向波浪力时间表 ==========
 *AFUN,RAD
 
