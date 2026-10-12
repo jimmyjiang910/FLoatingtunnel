@@ -13,7 +13,13 @@ S2=PI*R2**2
 S3=PI*R3**2
 S4=PI*R4**2
 BWR=1.1      !(1.1 1.3 1.5 1.7 1.9)
-LT=4800
+!管道跨长
+LT1=500
+LT2=1000
+LT3=3000
+LT4=5000
+LT5=10000
+LT=LT4
 LS=100
 N=LT/LS
 HT=100
@@ -24,7 +30,9 @@ D1=1
 D2=1
 *AFUN,DEG
 TH_1=45
-TH_2=0
+TH_2=90
+TH_3=60      !安装角
+LL=HT-HS-R2*cos(TH_3)
 
 ! ========== 波流参数 ==========
 rho_water=1025
@@ -115,8 +123,8 @@ SECTYPE,3,LINK
 SECDATA,S3
 
 *DO,i,1,N/2
-    K,i+1000, LS*(2*i-1), -HT, R2+LL*TAN(TH_1)
-    K,i+2000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_1)
+    K,i+3000, LS*(2*i-1), -HT, R2*SIN(TH_3)+LL/TAN(TH_2)
+    K,i+4000, LS*(2*i-1), -HT, -R2*SIN(TH_3)-LL/TAN(TH_2)
 *ENDDO
 *DO,i,1,N/2
     L,i+1000,i+100
@@ -159,6 +167,28 @@ D,ALL,ALL,0
 NSEL,S,LOC,Y,-HT-1,-HT+1
 D,ALL,ALL,0
 ALLSEL
+
+! 管体中心与刚臂两端建立刚性连接
+ALLSEL,ALL
+
+ET,5,MPC184
+KEYOPT,5,1,1       ! 刚性梁：关联平移和转动
+KEYOPT,5,2,0       ! 直接消元法
+
+TYPE,5
+MAT,2              ! 使用已有零密度材料，不增加质量
+
+*DO,i,1,N/2
+    ! 获取关键点对应的实际节点编号
+    *GET,n_center,KP,2*i,ATTR,NODE
+    *GET,n_side1,KP,i+100,ATTR,NODE
+    *GET,n_side2,KP,i+200,ATTR,NODE
+
+    E,n_center,n_side1
+    E,n_center,n_side2
+*ENDDO
+
+ALLSEL,ALL
 
 ! ========== 生成Y、Z双向波浪力时间表 ==========
 *AFUN,RAD
@@ -485,6 +515,11 @@ OUTRES,ALL,ALL
     F,ALL,FY,0.5*q_force_y*Le_tunnel
 
     ALLSEL,ALL
+    SOLVE
+
+*ENDDO
+
+FINISH
     SOLVE
 
 *ENDDO
