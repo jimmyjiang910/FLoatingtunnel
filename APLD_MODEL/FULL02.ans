@@ -19,19 +19,19 @@ LT2=1000
 LT3=3000
 LT4=5000
 LT5=10000
-LT=LT1
+LT=LT4
 LS=100
 N=LT/LS
 HT=100
 HS=40
-LL=HT-HS
 D0=15
 D1=1
 D2=1
 *AFUN,DEG
 TH_1=45
-TH_2=0
-
+TH_2=90
+TH_3=60      !安装角
+LL=HT-HS-R2*cos(TH_3)
 ! ========== 波流参数 ==========
 rho_water=1025
 g=9.81
@@ -93,14 +93,13 @@ SECTYPE,2,BEAM,CSOLID,,0
 SECDATA,0.1
 
 *DO,i,1,N/2
-    K,i+100, LS*(2*i-1), -HS, R2
-    K,i+200, LS*(2*i-1), -HS, -R2
+    K,i+100, LS*(2*i-1), -HS-R2*cos(TH_3), R2*SIN(TH_3)
+    K,i+200, LS*(2*i-1), -HS-R2*cos(TH_3), -R2*SIN(TH_3)
 *ENDDO
 *DO,i,1,N/2
-    L,2*i,i+200
-    L,2*i,i+100
+    L,i+100,i+200
 *ENDDO
-LSEL,S,LOC,Z,-1,1
+LSEL,S,LOC,Y,-0.1,0.1
 LSEL,INVE
 LATT,2,,2,,,,2
 LESIZE,ALL,,,1
@@ -115,8 +114,8 @@ SECTYPE,3,LINK
 SECDATA,S3
 
 *DO,i,1,N/2
-    K,i+1000, LS*(2*i-1), -HT, R2+LL*TAN(TH_1)
-    K,i+2000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_1)
+    K,i+1000, LS*(2*i-1), -HT, R2*SIN(TH_3)+LL/TAN(TH_1)
+    K,i+2000, LS*(2*i-1), -HT, -R2*SIN(TH_3)-LL/TAN(TH_1)
 *ENDDO
 *DO,i,1,N/2
     L,i+1000,i+100
@@ -137,8 +136,8 @@ SECTYPE,4,LINK
 SECDATA,S4
 
 *DO,i,1,N/2
-    K,i+3000, LS*(2*i-1), -HT, R2+LL*TAN(TH_2)
-    K,i+4000, LS*(2*i-1), -HT, -R2-LL*TAN(TH_2)
+    K,i+3000, LS*(2*i-1), -HT, R2*SIN(TH_3)+LL/TAN(TH_2)
+    K,i+4000, LS*(2*i-1), -HT, -R2*SIN(TH_3)-LL/TAN(TH_2)
 *ENDDO
 *DO,i,1,N/2
     L,i+3000,i+100
