@@ -99,9 +99,12 @@ MP,DENS,2,0
 SECTYPE,2,BEAM,CSOLID,,0
 SECDATA,0.1
 
+! 保留200 m缆索站间距，按实际建模循环累计缆索组数
+n_bent=0
 *DO,i,1,N/2
     K,i+100, LS*(2*i-1), -HS-R2*cos(TH_3), R2*SIN(TH_3)
     K,i+200, LS*(2*i-1), -HS-R2*cos(TH_3), -R2*SIN(TH_3)
+    n_bent=n_bent+1
 *ENDDO
 *DO,i,1,N/2
     L,i+100,i+200
@@ -226,7 +229,7 @@ Vol_displaced=S2*LT
 W_pipe=rho_pipe*g*S1*LT
 Fnet_N=(BWR-1)*W_pipe
 rho_steel=7850
-n_bent=N-1
+! n_bent使用上面建模循环累计的实际缆索组数，当前5 km工况为25组
 ! 两类缆索长度分别由TH_1、TH_2计算，与前面LL/TAN(倾角)的几何一致
 ! 当前*AFUN为RAD，故将以度给定的倾角转换为弧度
 Lc_1=LL/SIN(TH_1*PI/180)
