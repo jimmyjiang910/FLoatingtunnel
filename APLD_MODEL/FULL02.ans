@@ -228,7 +228,7 @@ ALLSEL,ALL
 Vol_displaced=S2*LT
 W_pipe=rho_pipe*g*S1*LT
 Fnet_N=(BWR-1)*W_pipe
-rho_steel=7850
+rho_steel=7937
 ! n_bent使用上面建模循环累计的实际缆索组数，当前5 km工况为25组
 ! 两类缆索长度分别由TH_1、TH_2计算，与前面LL/TAN(倾角)的几何一致
 ! 当前*AFUN为RAD，故将以度给定的倾角转换为弧度
