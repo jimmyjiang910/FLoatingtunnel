@@ -29,8 +29,8 @@ D0=15
 D1=1
 D2=1
 *AFUN,DEG
-TH_1=45
-TH_2=90
+TH_1=45     ! 第1类缆索倾角，相对水平面定义
+TH_2=90     ! 第2类缆索倾角，相对水平面定义；90度为竖缆
 TH_3=60      !安装角
 LL=HT-HS-R2*cos(TH_3)
 
@@ -112,7 +112,7 @@ LATT,2,,2,,,,2
 LESIZE,ALL,,,1
 LMESH,ALL
 
-! 缆绳1(默认斜缆45°)
+! 第1类缆索（倾角TH_1，默认斜缆45度）
 ET,3,LINK180
 MP,EX,3,2.10e11
 MP,PRXY,3,0.3
@@ -135,7 +135,7 @@ LATT,3,,3,,,,3
 LESIZE,ALL,,,D1
 LMESH,ALL
 
-! 缆绳2(默认竖缆)
+! 第2类缆索（倾角TH_2，默认90度竖缆，可调整为斜缆）
 ET,4,LINK180
 MP,EX,4,2.10e11
 MP,PRXY,4,0.3
@@ -227,9 +227,11 @@ W_pipe=rho_pipe*g*S1*LT
 Fnet_N=(BWR-1)*W_pipe
 rho_steel=7850
 n_bent=N-1
-Lc_v=LL
-Lc_i=LL/COS(TH_1*PI/180)
-Wc_sub=(rho_steel-rho_water)*g*(2*S4*Lc_v+2*S3*Lc_i)*n_bent
+! 两类缆索长度分别由TH_1、TH_2计算，与前面LL/TAN(倾角)的几何一致
+! 当前*AFUN为RAD，故将以度给定的倾角转换为弧度
+Lc_1=LL/SIN(TH_1*PI/180)
+Lc_2=LL/SIN(TH_2*PI/180)
+Wc_sub=(rho_steel-rho_water)*g*(2*S3*Lc_1+2*S4*Lc_2)*n_bent
 q_buoy_static=(Fnet_N-Wc_sub)/LT
 *STATUS,Wc_sub
 *STATUS,q_buoy_static
